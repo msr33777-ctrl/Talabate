@@ -1,0 +1,202 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny-all catch-all rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "msr33777@gmail.com"
+      );
+    }
+
+    function isSupportAgent() {
+      return isSignedIn() && (
+        isAdmin() ||
+        exists(/databases/$(database)/documents/support_agents/$(request.auth.uid))
+      );
+    }
+
+    // 1. Users collection: strictly isolated per user; privilege elevation restricted to admin
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId && (
+        !('role' in request.resource.data) || request.resource.data.role == 'customer' || isAdmin()
+      );
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 2. Restaurants / Stores collections: public catalog browsing, merchant owner write
+    match /restaurants/{restaurantId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (
+        resource.data.merchantUserId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /stores/{storeId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (
+        resource.data.merchantUserId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // 3. Products collection: public menu browsing, merchant owner write
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // 4. Orders collection: strictly partitioned by Customer, Merchant, Courier, Admin
+    match /orders/{orderId} {
+      // Read allowed only to the customer who ordered, the store merchant, the courier, or admin
+      allow read: if isSignedIn() && (
+        resource.data.customer.id == request.auth.uid ||
+        resource.data.merchantUserId == request.auth.uid ||
+        resource.data.courierId == request.auth.uid ||
+        isAdmin()
+      );
+
+      // Customer creates their own order
+      allow create: if isSignedIn() && (
+        request.resource.data.customer.id == request.auth.uid ||
+        isAdmin()
+      );
+
+      // Role-separated updates:
+      allow update: if isSignedIn() && (
+        // Customer can cancel if the order is still in early stage
+        (resource.data.customer.id == request.auth.uid &&
+         (resource.data.status == 'created' || resource.data.status == 'merchant_accepted') &&
+         request.resource.data.status == 'cancelled') ||
+
+        // Merchant can accept and mark prepared
+        (resource.data.merchantUserId == request.auth.uid &&
+         request.resource.data.customer.id == resource.data.customer.id) ||
+
+        // Courier can accept / update delivery status
+        (resource.data.courierId == request.auth.uid ||
+         (!('courierId' in resource.data) && request.resource.data.courierId == request.auth.uid)) ||
+
+        // Admin override
+        isAdmin()
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // 5. Couriers collection: couriers manage their own fleet record, admin oversight
+    match /couriers/{courierId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 6. Support chats: private between the user (customer/courier) and support staff
+    match /support_chats/{chatId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isSupportAgent()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        isSupportAgent()
+      );
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isSupportAgent()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /support_conversations/{conversationId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isSupportAgent()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        isSupportAgent()
+      );
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isSupportAgent()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 7. Audit logs: admin read, system/auth actor create
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // 8. Platform pricing and commission settings: public read, strictly admin write
+    match /platform_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 9. Ratings and customer reviews: public read, customer create, admin manage
+    match /ratings/{ratingId} {
+      allow read: if true;
+      allow create: if isSignedIn() && (
+        request.resource.data.customerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // 10. Restaurant & Merchant Onboarding Applications
+    match /restaurant_applications/{appId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'pending'
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // 11. Courier & Captain Onboarding Applications
+    match /courier_applications/{appId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'pending'
+      );
+      allow update, delete: if isAdmin();
+    }
+  }
+}
