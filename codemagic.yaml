@@ -14,13 +14,14 @@ workflows:
           echo "Checking project files..."
           ls -la
           test -f package.json
+          test -f capacitor.config.ts
 
       - name: Install dependencies
         script: |
           node --version
           npm --version
           npm cache clean --force
-          npm install --no-audit --no-fund --verbose
+          npm install --legacy-peer-deps --no-audit --no-fund
 
       - name: Build web app
         script: |
@@ -28,7 +29,7 @@ workflows:
 
       - name: Prepare Android project
         script: |
-          npm install @capacitor/android
+          npx cap add android || true
           npx cap sync android
 
       - name: Build Android APK
