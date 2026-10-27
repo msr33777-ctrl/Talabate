@@ -1,0 +1,26 @@
+
+workflows:
+  talabi-android:
+    name: TALABI Android APK
+    max_build_duration: 60
+    environment:
+      java: 17
+      node: 20
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm ci
+      - name: Build web app
+        script: |
+          npm run build
+      - name: Prepare Android project
+        script: |
+          npm install @capacitor/android
+          npx cap sync android
+      - name: Build APK
+        script: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+    artifacts:
+      - android/app/build/outputs/apk/debug/*.apk
