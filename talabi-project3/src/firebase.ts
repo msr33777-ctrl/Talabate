@@ -1,3 +1,4 @@
+
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
@@ -7,6 +8,10 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   ConfirmationResult,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
 } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -14,13 +19,21 @@ import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: The app will break without passing firestoreDatabaseId
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-export { RecaptchaVerifier, signInWithPhoneNumber };
+export {
+  signInWithPopup,
+  fbSignOut,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
+};
 export type { ConfirmationResult };
 
 export enum OperationType {
@@ -44,7 +57,11 @@ export interface FirestoreErrorInfo {
   };
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -65,11 +82,13 @@ export async function testConnection(): Promise<boolean> {
     await getDocFromServer(doc(db, 'test', 'connection'));
     return true;
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
+    if (
+      error instanceof Error &&
+      error.message.includes('the client is offline')
+    ) {
       console.warn('Firebase client is offline.');
       return false;
     }
-    // Any other response means we connected to the server even if document does not exist
     return true;
   }
 }
