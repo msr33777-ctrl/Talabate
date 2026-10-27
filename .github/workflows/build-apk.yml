@@ -39,7 +39,7 @@ jobs:
       - name: Prepare Android
         run: npx cap sync android
 
-      - name: Build APK
+      - name: Build Android APK
         run: |
           cd android
           chmod +x gradlew
