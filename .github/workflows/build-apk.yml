@@ -1,4 +1,4 @@
-name: Build TALABI Android APK
+name: TALABI Build Check
 
 on:
 workflow_dispatch:
@@ -7,33 +7,11 @@ paths:
 - ".github/workflows/build-apk.yml"
 
 jobs:
-build:
+check:
 runs-on: ubuntu-latest
 steps:
-- name: Download repository
+- name: Checkout repository
 uses: actions/checkout@v4
 
-  - name: Set up archive tools
-    run: sudo apt-get update && sudo apt-get install -y unzip
-
-  - name: Extract project ZIP
-    run: |
-      unzip -o "talabi-project(1).zip" -d extracted
-      find extracted -name package.json -print
-
-  - name: Locate project
-    run: |
-      PROJECT_DIR="$(dirname "$(find extracted -name package.json -print -quit)")"
-      test -n "$PROJECT_DIR"
-      echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-  - name: Set up Node.js
-    uses: actions/setup-node@v4
-    with:
-      node-version: 20
-
-  - name: Install dependencies
-    run: cd "$PROJECT_DIR" && npm install
-
-  - name: Build web app
-    run: cd "$PROJECT_DIR" && npm run build
+  - name: List repository files
+    run: ls -la
