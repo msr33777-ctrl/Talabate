@@ -2,8 +2,7 @@
 name: TALABI Android Build
 
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: 
 jobs:
   build:
     runs-on: ubuntu-latest
