@@ -1,0 +1,36 @@
+
+name: Build TALABI Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download project
+        uses: actions/checkout@v4
+
+      - name: Check project files
+        run: |
+          echo "Files in repository:"
+          ls -la
+          echo "Checking for package.json..."
+          test -f package.json || {
+            echo "ERROR: package.json not found in repository root."
+            exit 1
+          }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
