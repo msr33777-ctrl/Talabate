@@ -1,0 +1,236 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------------
+    // 1. GLOBAL SAFETY NET & HELPERS
+    // -------------------------------------------------------------------------
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).get('role', 'customer');
+    }
+
+    function isEmailAdmin() {
+      return isSignedIn() && request.auth.token.email in ['msr33777@gmail.com', 'admin@talabi.iq', 'admin.operations@talabi.iq'];
+    }
+
+    function isAdmin() {
+      return isEmailAdmin() || (isSignedIn() && getUserRole() == 'admin');
+    }
+
+    function isMerchant() {
+      return isSignedIn() && getUserRole() == 'merchant';
+    }
+
+    function isCourier() {
+      return isSignedIn() && getUserRole() == 'courier';
+    }
+
+    function isSupport() {
+      return isAdmin() || (isSignedIn() && getUserRole() == 'support');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. ENTITY VALIDATORS
+    // -------------------------------------------------------------------------
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'phone', 'email', 'role']) &&
+             data.id == request.auth.uid &&
+             data.role in ['customer', 'merchant', 'courier', 'admin', 'support'] &&
+             data.name is string && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.email is string && data.email.size() <= 100 &&
+             (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 5000)) &&
+             (!('city' in data) || (data.city is string && data.city.size() <= 100)) &&
+             (!('address' in data) || (data.address is string && data.address.size() <= 500));
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['id', 'storeId', 'total', 'status', 'payment']) &&
+             data.storeId is string &&
+             data.total is number &&
+             data.status in ['created', 'merchant_accepted', 'preparing', 'ready_for_pickup', 'courier_assigned', 'picked_up', 'courier_arrived', 'delivered', 'cancelled'];
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. COLLECTION RULES
+    // -------------------------------------------------------------------------
+
+    // USERS: Each user can read/write their own profile. Only admin can change roles.
+    match /users/{userId} {
+      allow get: if isSignedIn() && (isOwner(userId) || isEmailAdmin() || isAdmin() || isSupport());
+      allow list: if isEmailAdmin() || isAdmin();
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && (
+        // Prevent self-assignment of elevated roles unless it's a bootstrap admin
+        incoming().role == 'customer' || (incoming().role == 'admin' && isEmailAdmin())
+      );
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role) || // Owner cannot change role
+        (isEmailAdmin() && isValidUser(incoming())) ||
+        (isAdmin() && isValidUser(incoming())) // Admin can change everything
+      );
+    }
+
+    // STORES: Public read. Only admin or assigned merchant can update.
+    match /stores/{storeId} {
+      allow read: if true;
+      allow create: if isEmailAdmin() || isAdmin();
+      allow update: if isEmailAdmin() || isAdmin() || (isMerchant() && existing().merchantUserId == request.auth.uid);
+      allow delete: if isEmailAdmin() || isAdmin();
+    }
+
+    match /restaurants/{storeId} {
+      allow read: if true;
+      allow create: if isEmailAdmin() || isAdmin();
+      allow update: if isEmailAdmin() || isAdmin() || (isMerchant() && existing().merchantUserId == request.auth.uid);
+      allow delete: if isEmailAdmin() || isAdmin();
+    }
+
+    // PRODUCTS: Public read. Only store owner or admin can update.
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update, delete: if isEmailAdmin() || isAdmin() || (
+        isMerchant() && 
+        get(/databases/$(database)/documents/stores/$(incoming().storeId)).data.merchantUserId == request.auth.uid
+      );
+    }
+
+    // USER_ORDER_STATS: Track active orders and timestamps for rate limiting
+    match /user_order_stats/{userId} {
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow create, update: if isSignedIn() && isOwner(userId) && 
+        incoming().keys().hasAll(['activeOrderId', 'lastOrderTimestamps']) &&
+        incoming().lastOrderTimestamps is list &&
+        incoming().lastOrderTimestamps.size() <= 2;
+    }
+
+    // ORDERS: Customer sees own. Merchant sees orders for their store. Courier sees assigned.
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && (
+        resource.data.customer.id == request.auth.uid ||
+        resource.data.merchantUserId == request.auth.uid ||
+        resource.data.courierId == request.auth.uid ||
+        isEmailAdmin() || isAdmin() || isSupport()
+      );
+      allow list: if isSignedIn() && (
+        isEmailAdmin() || isAdmin() || isSupport() || isCourier() || // Courier needs to see available orders
+        (isMerchant() && resource.data.merchantUserId == request.auth.uid) ||
+        (resource.data.customer.id == request.auth.uid)
+      );
+      
+      allow create: if isSignedIn() && 
+        isValidOrder(incoming()) && 
+        incoming().customer.id == request.auth.uid &&
+        // 1. Anti-tampering: Status MUST be 'created'
+        incoming().status == 'created' &&
+        // 2. Transactional Integrity: Must update user_order_stats to reflect THIS order
+        getAfter(/databases/$(database)/documents/user_order_stats/$(request.auth.uid)).data.activeOrderId == orderId &&
+        // 3. Rate Limiting: Max 2 orders in 10 minutes (Logic: size <= 2, and if size was 2, the old one must be 10m old)
+        // Note: Simple size check here, combined with timestamp check
+        (
+          get(/databases/$(database)/documents/user_order_stats/$(request.auth.uid)).data.lastOrderTimestamps.size() < 2 ||
+          (request.time - get(/databases/$(database)/documents/user_order_stats/$(request.auth.uid)).data.lastOrderTimestamps[0] > duration.value(10, 'm'))
+        );
+      
+      allow update: if isSignedIn() && isValidOrder(incoming()) && (
+        isEmailAdmin() || isAdmin() ||
+        // Merchant actions (Accept, Prepare, Ready)
+        (isMerchant() && existing().merchantUserId == request.auth.uid && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'events', 'estimatedDeliveryTime'])) ||
+        // Courier actions (Claim, Picked Up, Arrived, Delivered)
+        (isCourier() && (
+          // Case 1: Claiming an unassigned order
+          (existing().courierId == null && incoming().courierId == request.auth.uid &&
+           incoming().diff(existing()).affectedKeys().hasAll(['courierId', 'status', 'events']) &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['courierId', 'courierName', 'courierPhone', 'status', 'events'])) ||
+          // Case 2: Updating assigned order
+          (existing().courierId == request.auth.uid && 
+           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'events', 'payment']))
+        )) ||
+        // Customer actions (Cancel)
+        (existing().customer.id == request.auth.uid && existing().status == 'created' &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'events', 'cancellationReason']))
+      );
+    }
+
+    // COURIERS: Public read of status. Courier updates own.
+    match /couriers/{courierId} {
+      allow read: if true;
+      allow create: if isEmailAdmin() || isAdmin();
+      allow update: if isEmailAdmin() || isAdmin() || (isCourier() && existing().userId == request.auth.uid);
+    }
+
+    // SUPPORT: Private threads.
+    match /support_conversations/{convId} {
+      allow read: if isEmailAdmin() || isSupport() || (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid));
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isEmailAdmin() || isSupport() || (isSignedIn() && existing().userId == request.auth.uid);
+    }
+
+    // SETTINGS: Admin only.
+    match /platform_settings/{settingId} {
+      allow read: if true;
+      allow write: if isEmailAdmin() || isAdmin();
+    }
+
+    // AUDIT LOGS: Create only for all. Read for admin.
+    match /audit_logs/{logId} {
+      allow get: if isEmailAdmin() || isAdmin();
+      allow list: if isEmailAdmin() || isAdmin();
+      allow create: if isSignedIn();
+    }
+
+    // RATINGS: Public read. Customer create.
+    match /ratings/{ratingId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().customerId == request.auth.uid;
+      allow delete: if isEmailAdmin() || isAdmin();
+    }
+
+    // APPLICATIONS: Owner read/create. Admin manage.
+    match /restaurant_applications/{appId} {
+      allow read: if isEmailAdmin() || isAdmin() || (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid));
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update, delete: if isEmailAdmin() || isAdmin();
+    }
+
+    match /courier_applications/{appId} {
+      allow read: if isEmailAdmin() || isAdmin() || (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid));
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update, delete: if isEmailAdmin() || isAdmin();
+    }
+
+    // PAYMENTS
+    match /store_payments/{paymentId} {
+      allow get: if isEmailAdmin() || isAdmin() || isSupport() || (isSignedIn() && resource.data.storeId != null);
+      allow list: if isEmailAdmin() || isAdmin() || (isMerchant());
+      allow create: if isEmailAdmin() || isAdmin();
+      allow update, delete: if isEmailAdmin() || isAdmin();
+    }
+  }
+}

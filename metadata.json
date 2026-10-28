@@ -1,0 +1,8 @@
+{
+  "name": "طلبي | TALABI - منصة توصيل الطعام والماركت المتكاملة",
+  "description": "تطبيق التوصيل العراقي المتكامل: طلب الطعام والمقاضي، لوحة تحكم المطاعم، تطبيق المناديب، مركز الدعم الفني، وغرفة عمليات الإدارة.",
+  "request_frame_permission": false,
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

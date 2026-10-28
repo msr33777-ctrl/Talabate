@@ -1,0 +1,44 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper to check user role from Firestore
+    function getUserRole() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        getUserRole() == 'admin' || 
+        request.auth.token.email == 'msr33777@gmail.com'
+      );
+    }
+
+    // Profiles: Everyone can see, owner can upload small images
+    match /avatars/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == userId && request.resource.size < 2 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
+    }
+
+    // Store assets: Everyone can see, admin or merchant can upload
+    match /stores/{storeId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() || (isSignedIn() && getUserRole() == 'merchant' && firestore.get(/databases/(default)/documents/stores/$(storeId)).data.merchantUserId == request.auth.uid);
+    }
+
+    // Application documents (ID cards, etc.): Admin read, owner write
+    match /applications/{userId}/{allPaths=**} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow write: if isSignedIn() && request.auth.uid == userId && request.resource.size < 5 * 1024 * 1024;
+    }
+  }
+}

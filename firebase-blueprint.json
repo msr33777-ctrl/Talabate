@@ -1,0 +1,264 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role (customer, merchant, courier, admin, support)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer", "merchant", "courier", "admin", "support"] },
+        "avatar": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" }
+      },
+      "required": ["id", "name", "phone", "email", "role"]
+    },
+    "Restaurant": {
+      "title": "Restaurant",
+      "description": "Restaurant or supermarket merchant profile and settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "logo": { "type": "string" },
+        "banner": { "type": "string" },
+        "rating": { "type": "number" },
+        "ratingCount": { "type": "number" },
+        "deliveryTimeEstimate": { "type": "string" },
+        "deliveryFee": { "type": "number" },
+        "minimumOrder": { "type": "number" },
+        "isOpen": { "type": "boolean" },
+        "isSuspendedDueToDues": { "type": "boolean" },
+        "address": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "city": { "type": "string" },
+        "merchantUserId": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "isOpen", "deliveryFee", "merchantUserId"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Food dish or supermarket product in catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isAvailable": { "type": "boolean" },
+        "preparationTimeMinutes": { "type": "number" }
+      },
+      "required": ["id", "storeId", "name", "price", "isAvailable"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order with status progression and role-based updates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "idempotencyKey": { "type": "string" },
+        "customer": { "type": "object" },
+        "storeId": { "type": "string" },
+        "storeName": { "type": "string" },
+        "storeAddress": { "type": "string" },
+        "merchantUserId": { "type": "string" },
+        "courierId": { "type": "string" },
+        "courierName": { "type": "string" },
+        "courierPhone": { "type": "string" },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "serviceFee": { "type": "number" },
+        "total": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["created", "merchant_accepted", "preparing", "ready_for_pickup", "courier_assigned", "picked_up", "courier_arrived", "delivered", "cancelled"]
+        },
+        "payment": { "type": "object" },
+        "events": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "estimatedDeliveryTime": { "type": "string" },
+        "cancellationReason": { "type": "string" },
+        "isTest": { "type": "boolean" }
+      },
+      "required": ["id", "storeId", "items", "total", "status", "payment"]
+    },
+    "Courier": {
+      "title": "Courier",
+      "description": "Courier delivery driver information, vehicle, and earnings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "vehicleType": { "type": "string" },
+        "vehiclePlate": { "type": "string" },
+        "isOnline": { "type": "boolean" },
+        "isBusy": { "type": "boolean" },
+        "currentOrderId": { "type": "string" },
+        "rating": { "type": "number" },
+        "totalDeliveries": { "type": "number" },
+        "walletBalance": { "type": "number" },
+        "currentLocationName": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "phone", "isOnline"]
+    },
+    "SupportChat": {
+      "title": "SupportChat",
+      "description": "Support chat ticket for customers or couriers with staff",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "relatedOrderId": { "type": "string" },
+        "subject": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "pending", "resolved"] },
+        "lastMessage": { "type": "string" },
+        "lastUpdated": { "type": "string" },
+        "messages": { "type": "array" }
+      },
+      "required": ["id", "userId", "subject", "status", "messages"]
+    },
+    "PlatformPricingSettings": {
+      "title": "PlatformPricingSettings",
+      "description": "Platform delivery fee rules, area fees, and store commission rates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "defaultDeliveryFee": { "type": "number" },
+        "defaultCourierBasePayout": { "type": "number" },
+        "defaultCourierBonus": { "type": "number" },
+        "defaultPlatformCommissionPercent": { "type": "number" },
+        "areaDeliveryFees": { "type": "array" },
+        "storeCommissionOverrides": { "type": "array" },
+        "serviceArea": { "type": "object" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["id", "defaultDeliveryFee", "defaultCourierBasePayout", "defaultPlatformCommissionPercent"]
+    },
+    "OrderRating": {
+      "title": "OrderRating",
+      "description": "Customer ratings and feedback for store and courier after delivery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "storeId": { "type": "string" },
+        "storeName": { "type": "string" },
+        "storeRating": { "type": "number" },
+        "storeComment": { "type": "string" },
+        "storeTags": { "type": "array" },
+        "courierId": { "type": "string" },
+        "courierName": { "type": "string" },
+        "courierRating": { "type": "number" },
+        "courierComment": { "type": "string" },
+        "courierTags": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "orderId", "customerId", "storeId", "storeRating", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System audit trail for security and operational monitoring",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "action": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "performedBy": { "type": "string" },
+        "details": { "type": "string" },
+        "severity": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "action", "performedBy"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "Generic application for restaurant or courier onboarding",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "suspended"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and RBAC role assignments"
+    },
+    "/restaurants/{restaurantId}": {
+      "schema": "Restaurant",
+      "description": "Restaurants and supermarket profiles"
+    },
+    "/stores/{storeId}": {
+      "schema": "Restaurant",
+      "description": "Stores and markets directory"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Restaurant menu items and grocery products"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Orders lifecycle with strict role separation"
+    },
+    "/couriers/{courierId}": {
+      "schema": "Courier",
+      "description": "Delivery fleet profile and status"
+    },
+    "/support_chats/{chatId}": {
+      "schema": "SupportChat",
+      "description": "Customer and courier support chat threads"
+    },
+    "/support_conversations/{conversationId}": {
+      "schema": "SupportChat",
+      "description": "Support conversations collection"
+    },
+    "/platform_settings/{settingId}": {
+      "schema": "PlatformPricingSettings",
+      "description": "Platform-wide pricing, area delivery fees, and restaurant commissions"
+    },
+    "/ratings/{ratingId}": {
+      "schema": "OrderRating",
+      "description": "Customer star ratings, compliments, and reviews for stores and couriers"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "System-wide audit trail"
+    },
+    "/restaurant_applications/{appId}": {
+      "schema": "Application",
+      "description": "Onboarding requests from potential store owners"
+    },
+    "/courier_applications/{appId}": {
+      "schema": "Application",
+      "description": "Onboarding requests from potential couriers"
+    },
+    "/store_payments/{paymentId}": {
+      "schema": "object",
+      "description": "Payments and settlements for merchants"
+    }
+  }
+}
