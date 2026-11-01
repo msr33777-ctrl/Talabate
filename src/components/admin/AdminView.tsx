@@ -242,7 +242,7 @@ export const AdminView: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
           <span className="text-[11px] font-bold text-slate-400 block">إجمالي التعاملات (GMV)</span>
-          <p className="text-lg font-black text-emerald-600">{totalGMV.toLocaleString()} د.ع</p>
+          <p className="text-lg font-black text-emerald-600">{(totalGMV ?? 0).toLocaleString()} د.ع</p>
           <span className="text-[10px] text-slate-400">دينار عراقي محقق</span>
         </div>
 
@@ -593,22 +593,22 @@ export const AdminView: React.FC = () => {
                       )}
                     </td>
                     <td className="p-3">
-                      <p className="font-black text-slate-900">{o.total.toLocaleString()} د.ع</p>
+                      <p className="font-black text-slate-900">{(o.total ?? 0).toLocaleString()} د.ع</p>
                       {o.financials ? (
                         <div className="flex flex-col gap-0.5 mt-1 text-[10px]">
                           <span className="text-emerald-700 font-bold">
-                            صافي المتجر: {o.financials.storeNetPayout.toLocaleString()} د.ع
+                            صافي المتجر: {(o.financials.storeNetPayout ?? 0).toLocaleString()} د.ع
                           </span>
                           <span className="text-purple-700 font-medium">
-                            عمولة المنصة ({o.financials.platformCommissionPercent}%): {o.financials.platformCommissionAmount.toLocaleString()} د.ع
+                            عمولة المنصة ({o.financials.platformCommissionPercent}%): {(o.financials.platformCommissionAmount ?? 0).toLocaleString()} د.ع
                           </span>
                           <span className="text-sky-700 font-medium">
-                            مستحق المندوب: {o.financials.courierTotalEarnings.toLocaleString()} د.ع
-                            {o.financials.courierBonus > 0 && ` (+${o.financials.courierBonus.toLocaleString()} حافز)`}
+                            مستحق المندوب: {(o.financials.courierTotalEarnings ?? 0).toLocaleString()} د.ع
+                            {o.financials.courierBonus > 0 && ` (+${(o.financials.courierBonus ?? 0).toLocaleString()} حافز)`}
                           </span>
                         </div>
                       ) : (
-                        <span className="text-[10px] text-slate-400">توصيل: {o.deliveryFee.toLocaleString()} د.ع</span>
+                        <span className="text-[10px] text-slate-400">توصيل: {(o.deliveryFee ?? 0).toLocaleString()} د.ع</span>
                       )}
                     </td>
                     <td className="p-3">
@@ -715,7 +715,7 @@ export const AdminView: React.FC = () => {
                 <div>
                   <h4 className="font-black text-xs text-slate-900">{s.name}</h4>
                   <p className="text-[11px] text-slate-400">{s.neighborhood} • {s.category}</p>
-                  <p className="text-[10px] text-emerald-700 font-bold mt-0.5">عمولة المنصة: 10% • أجور التوصيل: {s.deliveryFee.toLocaleString()} د.ع</p>
+                  <p className="text-[10px] text-emerald-700 font-bold mt-0.5">عمولة المنصة: 10% • أجور التوصيل: {(s.deliveryFee ?? 0).toLocaleString()} د.ع</p>
                 </div>
               </div>
               <span
@@ -750,7 +750,7 @@ export const AdminView: React.FC = () => {
               </p>
               <div className="pt-2 border-t border-slate-100 flex justify-between text-[11px]">
                 <span>التوصيلات: <strong>{c.totalDeliveries}</strong></span>
-                <span>المحفظة: <strong className="text-emerald-600">{c.walletBalance.toLocaleString()} د.ع</strong></span>
+                <span>المحفظة: <strong className="text-emerald-600">{(c.walletBalance ?? 0).toLocaleString()} د.ع</strong></span>
               </div>
             </div>
           ))}
@@ -888,7 +888,7 @@ export const AdminView: React.FC = () => {
                             <div className="text-[11px] text-slate-600 flex items-center gap-3 flex-wrap">
                               <span>المتجر: <strong className="text-slate-800">{testOrd.storeName}</strong></span>
                               <span>الزبون: <strong className="text-slate-800">{testOrd.customer.name}</strong></span>
-                              <span>المبلغ: <strong className="text-slate-800">{testOrd.total.toLocaleString()} د.ع</strong></span>
+                              <span>المبلغ: <strong className="text-slate-800">{(testOrd.total ?? 0).toLocaleString()} د.ع</strong></span>
                               {testOrd.courierName && (
                                 <span>المندوب: <strong className="text-slate-800">{testOrd.courierName}</strong></span>
                               )}

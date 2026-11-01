@@ -83,6 +83,9 @@ export const PricingAndCommissionsManager: React.FC = () => {
   const [defaultPlatformCommissionPercent, setDefaultPlatformCommissionPercent] = useState(
     pricingSettings.defaultPlatformCommissionPercent
   );
+  const [serviceFee, setServiceFee] = useState<number>(
+    pricingSettings.serviceFee ?? pricingSettings.defaultServiceFee ?? 1000
+  );
 
   // Local editing state for Area Fees
   const [areaFees, setAreaFees] = useState<AreaFeeConfig[]>(pricingSettings.areaDeliveryFees || []);
@@ -94,6 +97,28 @@ export const PricingAndCommissionsManager: React.FC = () => {
   const [storeOverrides, setStoreOverrides] = useState<StoreCommissionOverride[]>(
     pricingSettings.storeCommissionOverrides || []
   );
+
+  // Sync local state when pricingSettings updates from context/Firestore
+  React.useEffect(() => {
+    if (pricingSettings) {
+      setDistanceBaseFee(pricingSettings.distanceBaseFee ?? 1500);
+      setDistanceFeePerKm(pricingSettings.distanceFeePerKm ?? 250);
+      setDistanceMaxFee(pricingSettings.distanceMaxFee ?? 5000);
+      setIsDistancePricingEnabled(pricingSettings.isDistancePricingEnabled !== false);
+      setServiceAreaEnabled(pricingSettings.serviceArea?.isEnabled ?? true);
+      setServiceAreaLat(pricingSettings.serviceArea?.center?.lat ?? 33.4632);
+      setServiceAreaLng(pricingSettings.serviceArea?.center?.lng ?? 44.1508);
+      setServiceAreaRadius(pricingSettings.serviceArea?.radiusKm ?? 5);
+      setDefaultDeliveryFee(pricingSettings.defaultDeliveryFee);
+      setDefaultCourierBasePayout(pricingSettings.defaultCourierBasePayout);
+      setDefaultCourierBonus(pricingSettings.defaultCourierBonus);
+      setIsCourierBonusActive(pricingSettings.isCourierBonusActive !== false);
+      setDefaultPlatformCommissionPercent(pricingSettings.defaultPlatformCommissionPercent);
+      setServiceFee(pricingSettings.serviceFee ?? pricingSettings.defaultServiceFee ?? 1000);
+      setAreaFees(pricingSettings.areaDeliveryFees || []);
+      setStoreOverrides(pricingSettings.storeCommissionOverrides || []);
+    }
+  }, [pricingSettings]);
 
   // Status message
   const [isSaving, setIsSaving] = useState(false);
@@ -123,11 +148,20 @@ export const PricingAndCommissionsManager: React.FC = () => {
       distanceFeePerKm: Number(distanceFeePerKm) || 250,
       distanceMaxFee: Number(distanceMaxFee) || 5000,
       isDistancePricingEnabled,
+      serviceFee: Number(serviceFee) || 1000,
       defaultDeliveryFee: Number(defaultDeliveryFee),
       defaultCourierBasePayout: Number(defaultCourierBasePayout),
       defaultCourierBonus: Number(defaultCourierBonus),
       isCourierBonusActive,
       defaultPlatformCommissionPercent: Number(defaultPlatformCommissionPercent),
+      // Aliases
+      baseDeliveryFee: Number(distanceBaseFee) || 1500,
+      perKmFee: Number(distanceFeePerKm) || 250,
+      maxDeliveryFee: Number(distanceMaxFee) || 5000,
+      enableDistanceCalculation: isDistancePricingEnabled,
+      captainFee: Number(defaultCourierBasePayout),
+      platformCommissionPercent: Number(defaultPlatformCommissionPercent),
+      defaultServiceFee: Number(serviceFee) || 1000,
       areaDeliveryFees: areaFees,
       storeCommissionOverrides: storeOverrides,
       serviceArea: {
@@ -514,7 +548,7 @@ export const PricingAndCommissionsManager: React.FC = () => {
             <span className="text-[11px] text-slate-400">تُطبق بالدينار العراقي (د.ع)</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
             <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
               <label className="font-bold text-slate-700 block">أجرة التوصيل الأساسية (يدفعها الزبون)</label>
               <div className="relative">
@@ -530,8 +564,27 @@ export const PricingAndCommissionsManager: React.FC = () => {
               </div>
             </div>
 
+            <div className="space-y-1.5 bg-indigo-50/60 p-3.5 rounded-2xl border border-indigo-200">
+              <label className="font-bold text-slate-800 flex items-center justify-between">
+                <span>رسوم الخدمة (Service Fee)</span>
+                <span className="text-[10px] text-indigo-700 font-black">المنصة</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="250"
+                  min="0"
+                  required
+                  value={serviceFee}
+                  onChange={(e) => setServiceFee(Number(e.target.value))}
+                  className="w-full p-2.5 pl-12 rounded-xl border border-indigo-300 bg-white font-black text-indigo-900 focus:outline-none focus:border-indigo-500"
+                />
+                <span className="absolute left-3 top-2.5 text-slate-400 font-bold">د.ع</span>
+              </div>
+            </div>
+
             <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-              <label className="font-bold text-slate-700 block">مستحق المندوب الأساسي عن كل طلب</label>
+              <label className="font-bold text-slate-700 block">أجرة الكابتن الأساسية (مستحق المندوب)</label>
               <div className="relative">
                 <input
                   type="number"

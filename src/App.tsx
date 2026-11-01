@@ -8,6 +8,7 @@ import { CourierView } from './components/courier/CourierView';
 import { AdminView } from './components/admin/AdminView';
 import { SupportDeskView } from './components/support/SupportDeskView';
 import { NotificationsToast } from './components/common/NotificationsToast';
+import { ApplicationStatusScreen } from './components/onboarding/ApplicationStatusScreen';
 import {
   Wifi,
   Battery,
@@ -15,16 +16,24 @@ import {
   Smartphone,
   Monitor,
   Loader2,
+  ShieldAlert,
 } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const {
     role,
+    isAdmin,
     isMobileFrame,
     setIsMobileFrame,
     firebaseUser,
+    currentUser,
     isAuthReady,
     onboardingIntent,
+    courierApplications,
+    restaurantApplications,
+    roleMismatchWarning,
+    clearRoleMismatchWarning,
+    signOut,
   } = useApp();
 
   // 1. Loading state during Firebase Auth check
@@ -100,25 +109,69 @@ const MainContent: React.FC = () => {
     );
   }
 
-  // 3. Authenticated user -> Render Header and active role view
+  // 3. Authenticated user -> Render Header and active role view with Account Type Locking
   const renderActiveView = () => {
     if (onboardingIntent !== 'none') {
       return <AuthScreen />;
     }
-    switch (role) {
-      case 'customer':
-        return <CustomerView />;
-      case 'merchant':
-        return <MerchantView />;
-      case 'courier':
-        return <CourierView />;
-      case 'admin':
-        return <AdminView />;
-      case 'support':
-        return <SupportDeskView />;
-      default:
-        return <CustomerView />;
+
+    // 1. Admin accounts: strictly require verified Firebase Custom Claim (tokenResult.claims.role === 'admin')
+    if (isAdmin) {
+      switch (role) {
+        case 'admin':
+          return <AdminView />;
+        case 'merchant':
+          return <MerchantView />;
+        case 'courier':
+          return <CourierView />;
+        case 'support':
+          return <SupportDeskView />;
+        default:
+          return <CustomerView />;
+      }
     }
+
+    const userAccountType =
+      currentUser?.accountType && currentUser.accountType !== 'admin'
+        ? currentUser.accountType
+        : role === 'merchant'
+        ? 'restaurant'
+        : role === 'courier'
+        ? 'courier'
+        : 'customer';
+
+    // 2. Courier account type: Check application status
+    if (userAccountType === 'courier') {
+      const myCourApp = courierApplications.find(
+        (a) => a.userId === firebaseUser?.uid || a.applicantUserId === firebaseUser?.uid
+      );
+
+      // If no application submitted yet, or pending, or rejected:
+      if (!myCourApp || myCourApp.status !== 'approved') {
+        return <ApplicationStatusScreen type="courier" />;
+      }
+
+      // Approved courier -> opens CourierView only
+      return <CourierView />;
+    }
+
+    // 3. Restaurant account type: Check application status
+    if (userAccountType === 'restaurant') {
+      const myRestApp = restaurantApplications.find(
+        (a) => a.userId === firebaseUser?.uid || a.applicantUserId === firebaseUser?.uid
+      );
+
+      // If no application submitted yet, or pending, or rejected:
+      if (!myRestApp || myRestApp.status !== 'approved') {
+        return <ApplicationStatusScreen type="restaurant" />;
+      }
+
+      // Approved restaurant -> opens MerchantView only
+      return <MerchantView />;
+    }
+
+    // 4. Customer account type -> opens CustomerView only
+    return <CustomerView />;
   };
 
   return (
@@ -186,6 +239,41 @@ const MainContent: React.FC = () => {
 
       {/* Floating Notifications */}
       <NotificationsToast />
+
+      {/* Role Mismatch Cross-Path Warning Modal */}
+      {roleMismatchWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 text-slate-800 border border-slate-100 text-center font-['Cairo',sans-serif]">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-sm">
+              <ShieldAlert className="w-7 h-7" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-black text-base text-[#172554]">
+                تنبيه نظام تثبيت نوع الحساب
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                {roleMismatchWarning.message}
+              </p>
+            </div>
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={clearRoleMismatchWarning}
+                className="w-full py-3 bg-[#172554] hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm"
+              >
+                المتابعة بحسابي الحالي
+              </button>
+              <button
+                type="button"
+                onClick={signOut}
+                className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition"
+              >
+                تسجيل الخروج والتبديل لحساب آخر
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -46,11 +46,24 @@ export const AdminServiceAreaMap: React.FC<AdminServiceAreaMapProps> = ({
       });
 
       mapInstanceRef.current = map;
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 100);
     }
 
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        try {
+          const map = mapInstanceRef.current;
+          if ((map as any)._animatingZoom) {
+            (map as any)._animatingZoom = false;
+          }
+          map.remove();
+        } catch (e) {
+          console.warn('Admin map cleanup notice:', e);
+        }
         mapInstanceRef.current = null;
       }
     };

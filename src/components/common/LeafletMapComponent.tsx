@@ -15,11 +15,11 @@ interface LeafletMapComponentProps {
 
 export const LeafletMapComponent: React.FC<LeafletMapComponentProps> = ({
   captainCoords,
-  restaurantCoords = { lat: 33.3225, lng: 44.3685 }, // Baghdad - Palestine Street
-  customerCoords = { lat: 33.3080, lng: 44.3410 },   // Baghdad - University Street
-  storeName = 'مطعم البيتزا الإيطالي',
+  restaurantCoords,
+  customerCoords,
+  storeName = 'المطعم',
   customerName = 'الزبون',
-  showRoute = true,
+  showRoute = false,
   className = 'w-full h-full min-h-[350px]',
   onDistanceCalculated,
 }) => {
@@ -77,10 +77,6 @@ export const LeafletMapComponent: React.FC<LeafletMapComponentProps> = ({
 
     const capLat = captainCoords.lat;
     const capLng = captainCoords.lng;
-    const restLat = restaurantCoords.lat;
-    const restLng = restaurantCoords.lng;
-    const custLat = customerCoords.lat;
-    const custLng = customerCoords.lng;
 
     // 1. Captain Scooter Marker Icon (SVG)
     const captainIcon = L.divIcon({
@@ -101,46 +97,52 @@ export const LeafletMapComponent: React.FC<LeafletMapComponentProps> = ({
       .bindPopup(`<b>كابتن التوصيل</b><br>موقعك الحالي`)
       .addTo(layerGroup);
 
-    // 2. Restaurant Marker Icon (Red Pin)
-    const storeIcon = L.divIcon({
-      className: 'custom-leaflet-marker',
-      html: `
-        <div style="width: 38px; height: 48px; display: flex; flex-direction: column; align-items: center;">
-          <div style="width: 38px; height: 38px; background: #E11D48; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7 6 13 6 13s6-6 6-13z"/><circle cx="12" cy="8" r="2"/></svg>
+    // 2. Conditional Restaurant and Customer Markers & OSRM Route
+    if (showRoute && restaurantCoords && customerCoords) {
+      const restLat = restaurantCoords.lat;
+      const restLng = restaurantCoords.lng;
+      const custLat = customerCoords.lat;
+      const custLng = customerCoords.lng;
+
+      // Restaurant Marker Icon (Red Pin)
+      const storeIcon = L.divIcon({
+        className: 'custom-leaflet-marker',
+        html: `
+          <div style="width: 38px; height: 48px; display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 38px; height: 38px; background: #E11D48; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7 6 13 6 13s6-6 6-13z"/><circle cx="12" cy="8" r="2"/></svg>
+            </div>
+            <div style="width: 2px; height: 10px; background: #E11D48;"></div>
           </div>
-          <div style="width: 2px; height: 10px; background: #E11D48;"></div>
-        </div>
-      `,
-      iconSize: [38, 48],
-      iconAnchor: [19, 48],
-    });
+        `,
+        iconSize: [38, 48],
+        iconAnchor: [19, 48],
+      });
 
-    L.marker([restLat, restLng], { icon: storeIcon })
-      .bindPopup(`<b>المطعم</b><br>${storeName}`)
-      .addTo(layerGroup);
+      L.marker([restLat, restLng], { icon: storeIcon })
+        .bindPopup(`<b>المطعم</b><br>${storeName}`)
+        .addTo(layerGroup);
 
-    // 3. Customer Marker Icon (Green Pin)
-    const customerIcon = L.divIcon({
-      className: 'custom-leaflet-marker',
-      html: `
-        <div style="width: 38px; height: 48px; display: flex; flex-direction: column; align-items: center;">
-          <div style="width: 38px; height: 38px; background: #16A34A; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      // Customer Marker Icon (Green Pin)
+      const customerIcon = L.divIcon({
+        className: 'custom-leaflet-marker',
+        html: `
+          <div style="width: 38px; height: 48px; display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 38px; height: 38px; background: #16A34A; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </div>
+            <div style="width: 2px; height: 10px; background: #16A34A;"></div>
           </div>
-          <div style="width: 2px; height: 10px; background: #16A34A;"></div>
-        </div>
-      `,
-      iconSize: [38, 48],
-      iconAnchor: [19, 48],
-    });
+        `,
+        iconSize: [38, 48],
+        iconAnchor: [19, 48],
+      });
 
-    L.marker([custLat, custLng], { icon: customerIcon })
-      .bindPopup(`<b>الزبون</b><br>${customerName}`)
-      .addTo(layerGroup);
+      L.marker([custLat, custLng], { icon: customerIcon })
+        .bindPopup(`<b>الزبون</b><br>${customerName}`)
+        .addTo(layerGroup);
 
-    // 4. Draw OSRM Driving Route
-    if (showRoute) {
+      // Draw OSRM Driving Route
       setIsOsrmLoading(true);
       const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${restLng},${restLat};${capLng},${capLat};${custLng},${custLat}?overview=full&geometries=geojson`;
 

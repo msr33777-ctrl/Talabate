@@ -8,6 +8,9 @@ import {
   updateProfile,
 } from '../../firebase';
 import { PhoneAuthModal } from '../common/PhoneAuthModal';
+import { RealInteractiveMap } from '../common/RealInteractiveMap';
+import { isLocationInServiceArea } from '../../utils/distancePricing';
+import { LocationCoordinates } from '../../types';
 import {
   Mail,
   Lock,
@@ -28,6 +31,7 @@ import {
   Truck,
   MapPin,
   ShieldCheck,
+  Crosshair,
 } from 'lucide-react';
 
 export const AuthScreen: React.FC = () => {
@@ -38,10 +42,12 @@ export const AuthScreen: React.FC = () => {
     submitRestaurantApplication,
     submitCourierApplication,
     firebaseUser,
+    currentUser,
     restaurantApplications,
     courierApplications,
     onboardingIntent,
     setOnboardingIntent,
+    pricingSettings,
   } = useApp();
 
   // Login form state
@@ -51,6 +57,7 @@ export const AuthScreen: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [crossPathWarning, setCrossPathWarning] = useState<string | null>(null);
 
   // Active Modals state
   const [activeModal, setActiveModal] = useState<
@@ -84,7 +91,42 @@ export const AuthScreen: React.FC = () => {
   const [restCity, setRestCity] = useState('بغداد');
   const [restAddress, setRestAddress] = useState('');
   const [restMinOrder, setRestMinOrder] = useState('5000');
+  const [restCoords, setRestCoords] = useState<LocationCoordinates>({
+    lat: 33.3130,
+    lng: 44.3512,
+    accuracy: 25,
+    isManualPin: true,
+  });
+  const [isLocatingRestGps, setIsLocatingRestGps] = useState(false);
   const [restSuccess, setRestSuccess] = useState<string | null>(null);
+
+  const handleGetRestGpsLocation = () => {
+    if (!navigator.geolocation) {
+      addNotification('تنبيه الموقع', 'متصفحك لا يدعم جلب الموقع الجغرافي تلقائياً', 'info');
+      return;
+    }
+    setIsLocatingRestGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const newCoords: LocationCoordinates = {
+          lat: Number(pos.coords.latitude.toFixed(6)),
+          lng: Number(pos.coords.longitude.toFixed(6)),
+          accuracy: pos.coords.accuracy,
+          isManualPin: false,
+          verifiedAt: new Date().toLocaleTimeString('ar-IQ'),
+        };
+        setRestCoords(newCoords);
+        setIsLocatingRestGps(false);
+        addNotification('تم تحديث الموقع', 'تم جلب موقع المطعم الحالي عبر GPS بنجاح', 'success');
+      },
+      (err) => {
+        setIsLocatingRestGps(false);
+        console.warn('GPS location request notice:', err.message);
+        addNotification('تنبيه موقع GPS', 'تعذر جلب الموقع تلقائياً. يمكنك تحريك الخريطة وتحديد الموقع بالدبوس يدوياً.', 'info');
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
 
   // Courier App state
   const [courFullName, setCourFullName] = useState('');
@@ -230,6 +272,7 @@ export const AuthScreen: React.FC = () => {
       city: restCity,
       address: restAddress,
       minOrder: Number(restMinOrder) || 5000,
+      coordinates: restCoords,
     });
     setIsLoading(false);
     console.log('Restaurant app response:', res);
@@ -444,7 +487,10 @@ export const AuthScreen: React.FC = () => {
         {/* Real Google Login Button (Highly Recommended for msr33777@gmail.com) */}
         <button
           type="button"
-          onClick={signInWithGoogle}
+          onClick={() => {
+            setOnboardingIntent('none');
+            signInWithGoogle();
+          }}
           className="w-full py-3.5 bg-white hover:bg-slate-50 border-2 border-slate-200 text-slate-700 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-sm group"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -536,6 +582,17 @@ export const AuthScreen: React.FC = () => {
             <button
               type="button"
               onClick={() => {
+                if (firebaseUser) {
+                  const currentType = currentUser.accountType || (currentUser.role === 'merchant' ? 'restaurant' : currentUser.role === 'courier' ? 'courier' : 'customer');
+                  if (currentType === 'customer') {
+                    setCrossPathWarning('عذراً، هذا الحساب مسجل كحساب (زبون) بالفعل، ولا يمكن استخدامه للتسجيل كمطعم أو كابتن توصيل. يرجى استخدام حساب Google آخر أو التواصل مع الإدارة.');
+                    return;
+                  }
+                  if (currentType === 'courier') {
+                    setCrossPathWarning('عذراً، هذا الحساب مسجل كـ (كابتن توصيل) ولا يمكن استخدامه للتسجيل كمطعم.');
+                    return;
+                  }
+                }
                 setOnboardingIntent('restaurant');
                 setActiveModal('restaurant_app');
               }}
@@ -556,6 +613,17 @@ export const AuthScreen: React.FC = () => {
             <button
               type="button"
               onClick={() => {
+                if (firebaseUser) {
+                  const currentType = currentUser.accountType || (currentUser.role === 'merchant' ? 'restaurant' : currentUser.role === 'courier' ? 'courier' : 'customer');
+                  if (currentType === 'customer') {
+                    setCrossPathWarning('عذراً، هذا الحساب مسجل كحساب (زبون) بالفعل، ولا يمكن استخدامه للتسجيل ككابتن توصيل أو مطعم. يرجى استخدام حساب Google آخر أو التواصل مع الإدارة.');
+                    return;
+                  }
+                  if (currentType === 'restaurant') {
+                    setCrossPathWarning('عذراً، هذا الحساب مسجل كـ (مطعم) ولا يمكن استخدامه للتسجيل ككابتن توصيل.');
+                    return;
+                  }
+                }
                 setOnboardingIntent('courier');
                 setActiveModal('courier_app');
               }}
@@ -995,6 +1063,54 @@ export const AuthScreen: React.FC = () => {
                   />
                 </div>
 
+                {/* Restaurant Map Location Picker */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-800">
+                      موقع المطعم على الخريطة (حرك الدبوس أو اضغط لتحديد الموقع)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGetRestGpsLocation}
+                      disabled={isLocatingRestGps}
+                      className="text-[11px] font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-1 transition disabled:opacity-50"
+                    >
+                      <Crosshair className="w-3.5 h-3.5 text-amber-600" />
+                      <span>{isLocatingRestGps ? 'جاري التحديد...' : 'تحديد موقعي الحالي'}</span>
+                    </button>
+                  </div>
+
+                  {(() => {
+                    const areaCheck = isLocationInServiceArea(restCoords, pricingSettings);
+                    if (!areaCheck.isInArea) {
+                      return (
+                        <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-[11px] text-amber-900 font-medium flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold block text-amber-950">تنبيه منطقة التغطية:</span>
+                            الموقع المحدد يقع خارج منطقة التغطية الرئيسية حالياً ({pricingSettings.serviceArea?.areaName || 'سبع البور'}). يمكنك الاستمرار وحفظ طلب التقديم بشكل طبيعي، وسيردك الطلبات المخصصة لمطعمك.
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  <div className="rounded-2xl overflow-hidden border border-slate-300 h-52 shadow-xs relative">
+                    <RealInteractiveMap
+                      isInteractivePicker={true}
+                      destinationCoords={restCoords}
+                      onCoordinatesChange={setRestCoords}
+                      onCoordinateSelect={setRestCoords}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span>الإحداثيات: {restCoords.lat.toFixed(5)}, {restCoords.lng.toFixed(5)}</span>
+                    <span className="text-emerald-700 font-bold font-sans">✓ تم تحديد موقع الدبوس</span>
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-2 pt-2 border-t">
                   <button
                     type="button"
@@ -1242,6 +1358,34 @@ export const AuthScreen: React.FC = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CROSS-PATH WARNING MODAL */}
+      {crossPathWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 text-slate-800 border border-slate-100 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-sm">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-black text-base text-[#172554]">
+                تنبيه نظام تثبيت نوع الحساب
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                {crossPathWarning}
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setCrossPathWarning(null)}
+                className="w-full py-3 bg-[#EF3838] hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition shadow-sm"
+              >
+                فهمت ذلك
+              </button>
+            </div>
           </div>
         </div>
       )}
